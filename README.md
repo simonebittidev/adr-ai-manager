@@ -34,14 +34,42 @@ Pick commits (multi-select)
   → Initialize docs/adr/ on first run, write NNNN-slug.md, open it
 ```
 
+## Providers
+
+The extension is model-agnostic. Set `adrAi.provider`:
+
+- **`anthropic`** (default) — Claude via the Anthropic API.
+- **`openai`** — OpenAI, or any **OpenAI-compatible** endpoint. Point
+  `adrAi.baseUrl` at a local runtime to use a local model — no data leaves your
+  machine:
+
+  | Runtime | `adrAi.baseUrl` | `adrAi.model` example |
+  | --- | --- | --- |
+  | Ollama | `http://localhost:11434/v1` | `llama3.1`, `qwen2.5-coder` |
+  | LM Studio | `http://localhost:1234/v1` | (the loaded model id) |
+  | vLLM | `http://localhost:8000/v1` | (the served model id) |
+  | LiteLLM / OpenRouter | proxy URL | (proxied model id) |
+  | OpenAI | _empty_ | `gpt-4o` (default) |
+
+  Set `adrAi.model` explicitly for local runtimes (there is no safe default).
+  Local servers that need no key can leave the key unset.
+
+> Quality matters here: the assessment and the question generation lean on the
+> model's judgement. Larger/stronger models give better verdicts and sharper,
+> more specific questions; very small local models may produce weaker JSON
+> (the extension retries once) and blunter questions.
+
 ## Setup
 
 1. Install the extension (or run it from source — see below).
-2. Provide an Anthropic API key, in order of preference:
-   - **Command Palette → `ADR AI: Set Anthropic API Key`** (stored in VS Code
-     Secret Storage — recommended).
-   - the `ANTHROPIC_API_KEY` environment variable.
-   - the `adrAi.anthropicApiKey` setting (least secure).
+2. Pick your provider (`adrAi.provider`) and, for local models, set
+   `adrAi.baseUrl` and `adrAi.model`.
+3. Provide an API key (not needed for keyless local servers), in order of
+   preference:
+   - **Command Palette → `ADR AI: Set API Key`** (pick the provider; stored in
+     VS Code Secret Storage — recommended).
+   - the `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` environment variable.
+   - the `adrAi.anthropicApiKey` / `adrAi.openaiApiKey` setting (least secure).
 
 ## Usage
 
@@ -59,13 +87,16 @@ Pick commits (multi-select)
 
 | Setting | Default | Description |
 | --- | --- | --- |
+| `adrAi.provider` | `anthropic` | `anthropic` or `openai` (OpenAI-compatible). |
+| `adrAi.baseUrl` | `""` | OpenAI-compatible base URL (for local runtimes). |
+| `adrAi.model` | `""` | Model id; empty = provider default. Required for local. |
 | `adrAi.directory` | `docs/adr` | Where ADRs live (relative to the repo root). |
-| `adrAi.model` | `claude-opus-4-8` | Anthropic model used for both calls. |
 | `adrAi.maxQuestions` | `3` | Cap on targeted questions (keep it low). |
 | `adrAi.baseBranch` | `""` | Branch to diff against; empty = auto-detect. |
 | `adrAi.commitLimit` | `30` | Recent commits to list when nothing is ahead of base. |
 | `adrAi.maxDiffChars` | `60000` | Max diff characters sent to the model. |
-| `adrAi.anthropicApiKey` | `""` | API key (prefer the command or env var). |
+| `adrAi.anthropicApiKey` | `""` | Anthropic key (prefer the command or env var). |
+| `adrAi.openaiApiKey` | `""` | OpenAI key (prefer the command or env var). |
 
 ## Output
 

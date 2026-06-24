@@ -1,25 +1,34 @@
 import * as vscode from "vscode";
+import { Provider } from "./provider";
 
 export interface AdrAiConfig {
-  directory: string;
+  provider: Provider;
+  /** Raw model id from settings; may be empty (resolved per provider). */
   model: string;
+  baseUrl: string;
+  directory: string;
   maxQuestions: number;
   baseBranch: string;
   commitLimit: number;
   maxDiffChars: number;
   anthropicApiKey: string;
+  openaiApiKey: string;
 }
 
 export function getConfig(): AdrAiConfig {
   const cfg = vscode.workspace.getConfiguration("adrAi");
+  const provider = cfg.get<string>("provider", "anthropic") === "openai" ? "openai" : "anthropic";
   return {
+    provider,
+    model: cfg.get<string>("model", "").trim(),
+    baseUrl: cfg.get<string>("baseUrl", "").trim(),
     directory: cfg.get<string>("directory", "docs/adr").trim() || "docs/adr",
-    model: cfg.get<string>("model", "claude-opus-4-8").trim() || "claude-opus-4-8",
     maxQuestions: clamp(cfg.get<number>("maxQuestions", 3), 0, 5),
     baseBranch: cfg.get<string>("baseBranch", "").trim(),
     commitLimit: clamp(cfg.get<number>("commitLimit", 30), 1, 200),
     maxDiffChars: Math.max(cfg.get<number>("maxDiffChars", 60000), 4000),
-    anthropicApiKey: cfg.get<string>("anthropicApiKey", "").trim()
+    anthropicApiKey: cfg.get<string>("anthropicApiKey", "").trim(),
+    openaiApiKey: cfg.get<string>("openaiApiKey", "").trim()
   };
 }
 

@@ -2,7 +2,7 @@
   "name": "adr-ai-manager",
   "displayName": "ADR AI Manager",
   "description": "Select commits, let Claude decide whether they warrant an Architecture Decision Record, answer a few targeted questions, and generate a structured ADR — without fabricated rationale.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "simonebittidev",
   "license": "MIT",
   "engines": {
@@ -35,12 +35,12 @@
       },
       {
         "command": "adrAi.setApiKey",
-        "title": "ADR AI: Set Anthropic API Key",
+        "title": "ADR AI: Set API Key",
         "category": "ADR AI"
       },
       {
         "command": "adrAi.clearApiKey",
-        "title": "ADR AI: Clear Stored Anthropic API Key",
+        "title": "ADR AI: Clear Stored API Key",
         "category": "ADR AI"
       }
     ],
@@ -55,6 +55,21 @@
     "configuration": {
       "title": "ADR AI Manager",
       "properties": {
+        "adrAi.provider": {
+          "type": "string",
+          "enum": ["anthropic", "openai"],
+          "enumDescriptions": [
+            "Anthropic Messages API (Claude).",
+            "OpenAI Chat Completions API, or any OpenAI-compatible endpoint (set adrAi.baseUrl for local runtimes like Ollama, LM Studio, vLLM, LiteLLM)."
+          ],
+          "default": "anthropic",
+          "markdownDescription": "Which model provider to use."
+        },
+        "adrAi.baseUrl": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "OpenAI-compatible base URL for the `openai` provider. Leave empty for OpenAI itself. Examples: `http://localhost:11434/v1` (Ollama), `http://localhost:1234/v1` (LM Studio), `http://localhost:8000/v1` (vLLM)."
+        },
         "adrAi.directory": {
           "type": "string",
           "default": "docs/adr",
@@ -62,8 +77,8 @@
         },
         "adrAi.model": {
           "type": "string",
-          "default": "claude-opus-4-8",
-          "markdownDescription": "Anthropic model id used for assessment and ADR generation."
+          "default": "",
+          "markdownDescription": "Model id used for assessment and ADR generation. Leave empty to use the provider default (Anthropic: `claude-opus-4-8`, OpenAI: `gpt-4o`). **Required when using a local model** (set it to the served model name, e.g. `llama3.1`)."
         },
         "adrAi.maxQuestions": {
           "type": "number",
@@ -93,7 +108,12 @@
         "adrAi.anthropicApiKey": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Anthropic API key. **For security, prefer the `ADR AI: Set Anthropic API Key` command (stored in VS Code Secret Storage) or the `ANTHROPIC_API_KEY` environment variable instead of this setting.**"
+          "markdownDescription": "Anthropic API key. **For security, prefer the `ADR AI: Set API Key` command (stored in VS Code Secret Storage) or the `ANTHROPIC_API_KEY` environment variable instead of this setting.**"
+        },
+        "adrAi.openaiApiKey": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "OpenAI API key (also used for OpenAI-compatible endpoints that require a key). **Prefer the `ADR AI: Set API Key` command or the `OPENAI_API_KEY` environment variable.** Local servers that need no key can leave this empty."
         }
       }
     }
@@ -107,6 +127,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.0",
+    "openai": "^6.44.0",
     "zod": "^3.25.0"
   },
   "devDependencies": {

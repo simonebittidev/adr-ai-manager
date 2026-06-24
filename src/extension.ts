@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import * as path from "node:path";
-import { getConfig } from "./config";
+import { AdrAiConfig, getConfig } from "./config";
 import {
   collectChanges,
   detectBaseBranch,
@@ -11,7 +11,8 @@ import {
   listCommits,
   uniqueAuthors
 } from "./git";
-import { assess, createClient, generateAdr } from "./llm";
+import { assess, generateAdr } from "./llm";
+import { createLlmClient, Provider, resolveModel } from "./provider";
 import {
   ensureAdrDir,
   nextAdrNumber,
@@ -22,7 +23,8 @@ import {
 import { askQuestions, confirmDespiteVerdict, pickCommits } from "./ui";
 import { Assessment } from "./types";
 
-const SECRET_KEY = "adrAi.anthropicApiKey";
+const SECRET_PREFIX = "adrAi.apiKey.";
+const LEGACY_ANTHROPIC_SECRET = "adrAi.anthropicApiKey";
 
 export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
@@ -49,11 +51,12 @@ async function runGenerateFromCommits(context: vscode.ExtensionContext): Promise
     }
 
     const config = getConfig();
+    const model = resolveModel(config.provider, config.model, config.baseUrl);
 
-    const apiKey = await getApiKey(context, config.anthropicApiKey);
-    if (!apiKey) {
+    const apiKey = await getApiKey(context, config);
+    if (apiKey === undefined) {
       vscode.window.showWarningMessage(
-        "ADR AI: an Anthropic API key is required. Run “ADR AI: Set Anthropic API Key”."
+        `ADR AI: an API key is required for ${providerLabel(config.provider)}. Run “ADR AI: Set API Key”.`
       );
       return;
     }
@@ -77,13 +80,17 @@ async function runGenerateFromCommits(context: vscode.ExtensionContext): Promise
     }
 
     const changes = await collectChanges(repoRoot, selected, config.maxDiffChars);
-    const client = createClient(apiKey);
+    const client = createLlmClient({
+      provider: config.provider,
+      model,
+      apiKey,
+      baseUrl: config.baseUrl || undefined
+    });
 
     // --- AI call #1: verdict + questions ---
     const assessment = await runWithProgress(
-      "ADR AI: evaluating commits…",
-      (signal) =>
-        assess(client, config.model, branch, selected, changes, config.maxQuestions, signal)
+      `ADR AI: evaluating commits (${client.label})…`,
+      (signal) => assess(client, branch, selected, changes, config.maxQuestions, signal)
     );
     if (!assessment) {
       return; // cancelled
@@ -108,7 +115,6 @@ async function runGenerateFromCommits(context: vscode.ExtensionContext): Promise
     const markdown = await runWithProgress("ADR AI: writing the ADR…", (signal) =>
       generateAdr(
         client,
-        config.model,
         adrNumber,
         assessment.title,
         date,
@@ -199,52 +205,111 @@ async function findRepoRoot(): Promise<string | undefined> {
   return undefined;
 }
 
+/**
+ * Resolve the API key for the active provider. Returns:
+ *  - a key string (possibly empty for local OpenAI-compatible endpoints),
+ *  - undefined when a key is required but unavailable (caller should abort).
+ */
 async function getApiKey(
   context: vscode.ExtensionContext,
-  fromSetting: string
+  config: AdrAiConfig
 ): Promise<string | undefined> {
-  const stored = await context.secrets.get(SECRET_KEY);
+  const provider = config.provider;
+
+  const stored = await context.secrets.get(secretKey(provider));
   if (stored) {
     return stored;
   }
-  const fromEnv = process.env.ANTHROPIC_API_KEY?.trim();
+  if (provider === "anthropic") {
+    const legacy = await context.secrets.get(LEGACY_ANTHROPIC_SECRET);
+    if (legacy) {
+      return legacy;
+    }
+  }
+
+  const fromEnv = process.env[envVar(provider)]?.trim();
   if (fromEnv) {
     return fromEnv;
   }
+
+  const fromSetting = provider === "anthropic" ? config.anthropicApiKey : config.openaiApiKey;
   if (fromSetting) {
     return fromSetting;
   }
 
-  const entered = await promptForKey();
+  // Local OpenAI-compatible endpoints typically need no key.
+  if (provider === "openai" && config.baseUrl) {
+    return "";
+  }
+
+  const entered = await promptForKey(provider);
   if (entered) {
-    await context.secrets.store(SECRET_KEY, entered);
+    await context.secrets.store(secretKey(provider), entered);
     return entered;
   }
   return undefined;
 }
 
 async function setApiKey(context: vscode.ExtensionContext): Promise<void> {
-  const entered = await promptForKey();
+  const provider = await pickProvider();
+  if (!provider) {
+    return;
+  }
+  const entered = await promptForKey(provider);
   if (entered) {
-    await context.secrets.store(SECRET_KEY, entered);
-    vscode.window.showInformationMessage("ADR AI: Anthropic API key saved to Secret Storage.");
+    await context.secrets.store(secretKey(provider), entered);
+    vscode.window.showInformationMessage(
+      `ADR AI: ${providerLabel(provider)} API key saved to Secret Storage.`
+    );
   }
 }
 
 async function clearApiKey(context: vscode.ExtensionContext): Promise<void> {
-  await context.secrets.delete(SECRET_KEY);
-  vscode.window.showInformationMessage("ADR AI: stored Anthropic API key cleared.");
+  const provider = await pickProvider();
+  if (!provider) {
+    return;
+  }
+  await context.secrets.delete(secretKey(provider));
+  if (provider === "anthropic") {
+    await context.secrets.delete(LEGACY_ANTHROPIC_SECRET);
+  }
+  vscode.window.showInformationMessage(
+    `ADR AI: stored ${providerLabel(provider)} API key cleared.`
+  );
 }
 
-async function promptForKey(): Promise<string | undefined> {
+async function pickProvider(): Promise<Provider | undefined> {
+  const picked = await vscode.window.showQuickPick(
+    [
+      { label: "Anthropic", value: "anthropic" as const },
+      { label: "OpenAI / OpenAI-compatible (incl. local)", value: "openai" as const }
+    ],
+    { title: "Which provider's API key?", placeHolder: "Select a provider" }
+  );
+  return picked?.value;
+}
+
+async function promptForKey(provider: Provider): Promise<string | undefined> {
   const entered = await vscode.window.showInputBox({
-    title: "Anthropic API key",
+    title: `${providerLabel(provider)} API key`,
     prompt: "Stored securely in VS Code Secret Storage",
     password: true,
     ignoreFocusOut: true,
-    placeHolder: "sk-ant-…"
+    placeHolder: provider === "anthropic" ? "sk-ant-…" : "sk-…"
   });
   return entered?.trim() || undefined;
+}
+
+function secretKey(provider: Provider): string {
+  return SECRET_PREFIX + provider;
+}
+
+function envVar(provider: Provider): string {
+  return provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY";
+}
+
+function providerLabel(provider: Provider): string {
+  return provider === "anthropic" ? "Anthropic" : "OpenAI";
 }
 
 function isAbort(err: unknown): boolean {
@@ -258,13 +323,17 @@ function isAbort(err: unknown): boolean {
 function describeError(err: unknown): string {
   const status = (err as { status?: number }).status;
   if (status === 401) {
-    return "authentication failed — check your Anthropic API key (run “ADR AI: Set Anthropic API Key”).";
+    return "authentication failed — check your API key (run “ADR AI: Set API Key”).";
+  }
+  if (status === 404) {
+    return "model or endpoint not found — check 'adrAi.model' and 'adrAi.baseUrl' for the selected provider.";
   }
   if (status === 429) {
-    return "rate limited by the Anthropic API — try again shortly.";
+    return "rate limited by the model provider — try again shortly.";
   }
-  if (err instanceof Error) {
-    return err.message;
+  const message = err instanceof Error ? err.message : String(err);
+  if (/econnrefused|fetch failed|enotfound|network/i.test(message)) {
+    return "could not reach the model endpoint — check that the server is running and 'adrAi.baseUrl' is correct.";
   }
-  return String(err);
+  return message;
 }

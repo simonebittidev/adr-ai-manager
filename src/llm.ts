@@ -1,5 +1,5 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { AnsweredQuestion, Assessment, AssessmentSchema, Commit } from "./types";
+import { LlmClient } from "./provider";
 import {
   ASSESS_SYSTEM,
   GEN_SYSTEM,
@@ -7,43 +7,39 @@ import {
   buildGenUser
 } from "./prompts";
 
-export function createClient(apiKey: string): Anthropic {
-  return new Anthropic({ apiKey });
-}
-
 /** First call: verdict + targeted questions. */
 export async function assess(
-  client: Anthropic,
-  model: string,
+  client: LlmClient,
   branch: string,
   commits: Commit[],
   changes: string,
   maxQuestions: number,
   signal: AbortSignal
 ): Promise<Assessment> {
-  const response = await client.messages.create(
-    {
-      model,
-      max_tokens: 2048,
-      system: ASSESS_SYSTEM.replace("{MAX}", String(maxQuestions)),
-      messages: [
-        { role: "user", content: buildAssessUser(branch, commits, changes, maxQuestions) }
-      ]
-    },
-    { signal }
-  );
+  const system = ASSESS_SYSTEM.replace("{MAX}", String(maxQuestions));
+  const user = buildAssessUser(branch, commits, changes, maxQuestions);
 
-  const raw = extractJson(textOf(response));
-  const assessment = AssessmentSchema.parse(raw);
-  // Defend against a model that ignores the cap.
+  let text = await client.complete({ system, user, maxTokens: 2048, signal });
+  let assessment = tryParseAssessment(text);
+
+  if (!assessment) {
+    // Weaker/local models sometimes wrap or pad JSON — retry once, stricter.
+    const stricter = `${user}\n\nIMPORTANT: reply with ONLY the JSON object, no prose and no markdown fences.`;
+    text = await client.complete({ system, user: stricter, maxTokens: 2048, signal });
+    assessment = tryParseAssessment(text);
+  }
+
+  if (!assessment) {
+    throw new Error("the model did not return a valid JSON assessment.");
+  }
+
   assessment.questions = assessment.questions.slice(0, maxQuestions);
   return assessment;
 }
 
 /** Second call: generate the ADR markdown from diff + answers. */
 export async function generateAdr(
-  client: Anthropic,
-  model: string,
+  client: LlmClient,
   adrNumber: string,
   title: string,
   date: string,
@@ -53,29 +49,22 @@ export async function generateAdr(
   answered: AnsweredQuestion[],
   signal: AbortSignal
 ): Promise<string> {
-  const response = await client.messages.create(
-    {
-      model,
-      max_tokens: 8000,
-      system: GEN_SYSTEM,
-      messages: [
-        {
-          role: "user",
-          content: buildGenUser(adrNumber, title, date, deciders, commits, changes, answered)
-        }
-      ]
-    },
-    { signal }
-  );
-
-  return stripOuterFence(textOf(response).trim());
+  const text = await client.complete({
+    system: GEN_SYSTEM,
+    user: buildGenUser(adrNumber, title, date, deciders, commits, changes, answered),
+    maxTokens: 8000,
+    signal
+  });
+  return stripOuterFence(text.trim());
 }
 
-function textOf(response: Anthropic.Message): string {
-  return response.content
-    .filter((block): block is Anthropic.TextBlock => block.type === "text")
-    .map((block) => block.text)
-    .join("");
+function tryParseAssessment(text: string): Assessment | undefined {
+  const json = extractJson(text);
+  if (json === undefined) {
+    return undefined;
+  }
+  const result = AssessmentSchema.safeParse(json);
+  return result.success ? result.data : undefined;
 }
 
 /** Extract a JSON object from model text, tolerating accidental code fences. */
@@ -96,7 +85,7 @@ function extractJson(text: string): unknown {
   try {
     return JSON.parse(candidate);
   } catch {
-    throw new Error("The model did not return valid JSON for the assessment.");
+    return undefined;
   }
 }
 
