@@ -1,0 +1,150 @@
+{
+  "name": "adr-ai-manager",
+  "displayName": "ADR AI Manager",
+  "description": "Select commits, let an AI model (Claude, OpenAI, or a local OpenAI-compatible model) decide whether they warrant an Architecture Decision Record, answer a few targeted questions, and generate a structured ADR — without fabricated rationale.",
+  "version": "0.3.0",
+  "publisher": "simonebittidev",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "SCM Providers",
+    "Other"
+  ],
+  "keywords": [
+    "adr",
+    "architecture decision record",
+    "madr",
+    "claude",
+    "ai",
+    "documentation"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/simonebittidev/adr-ai-manager.git"
+  },
+  "main": "./out/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "commands": [
+      {
+        "command": "adrAi.generateFromCommits",
+        "title": "ADR AI: Generate ADR from Commits…",
+        "category": "ADR AI"
+      },
+      {
+        "command": "adrAi.setApiKey",
+        "title": "ADR AI: Set API Key",
+        "category": "ADR AI"
+      },
+      {
+        "command": "adrAi.clearApiKey",
+        "title": "ADR AI: Clear Stored API Key",
+        "category": "ADR AI"
+      }
+    ],
+    "menus": {
+      "scm/title": [
+        {
+          "command": "adrAi.generateFromCommits",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "ADR AI Manager",
+      "properties": {
+        "adrAi.provider": {
+          "type": "string",
+          "enum": ["anthropic", "openai", "azure"],
+          "enumDescriptions": [
+            "Anthropic Messages API (Claude).",
+            "OpenAI Chat Completions API, or any OpenAI-compatible endpoint (set adrAi.baseUrl for local runtimes like Ollama, LM Studio, vLLM, LiteLLM).",
+            "Azure OpenAI Service (set adrAi.azureEndpoint, adrAi.azureApiVersion, and adrAi.model to the deployment name)."
+          ],
+          "default": "anthropic",
+          "markdownDescription": "Which model provider to use."
+        },
+        "adrAi.baseUrl": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "OpenAI-compatible base URL for the `openai` provider. Leave empty for OpenAI itself. Examples: `http://localhost:11434/v1` (Ollama), `http://localhost:1234/v1` (LM Studio), `http://localhost:8000/v1` (vLLM)."
+        },
+        "adrAi.azureEndpoint": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Azure OpenAI resource endpoint for the `azure` provider, e.g. `https://<resource>.openai.azure.com`."
+        },
+        "adrAi.azureApiVersion": {
+          "type": "string",
+          "default": "2024-10-21",
+          "markdownDescription": "Azure OpenAI `api-version` for the `azure` provider. Newer models may require a newer version — check what your resource/deployment supports."
+        },
+        "adrAi.directory": {
+          "type": "string",
+          "default": "docs/adr",
+          "markdownDescription": "Directory (relative to the repository root) where ADR files live. Created on first use if missing."
+        },
+        "adrAi.model": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Model id used for assessment and ADR generation. Leave empty to use the provider default (Anthropic: `claude-opus-4-8`, OpenAI: `gpt-4o`). **Required for local models** (the served model name, e.g. `llama3.1`) and **for Azure** (your **deployment name**, not the base model id)."
+        },
+        "adrAi.maxQuestions": {
+          "type": "number",
+          "default": 3,
+          "minimum": 0,
+          "maximum": 5,
+          "markdownDescription": "Maximum number of targeted questions the AI may ask the developer before generating the ADR. Keep it low — friction is what kills these tools."
+        },
+        "adrAi.baseBranch": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Base branch to diff the current branch against when listing commits (e.g. `main`). Leave empty to auto-detect (`origin/HEAD`, then `main`/`master`/`develop`)."
+        },
+        "adrAi.commitLimit": {
+          "type": "number",
+          "default": 30,
+          "minimum": 1,
+          "maximum": 200,
+          "markdownDescription": "How many recent commits to list when the current branch has no commits ahead of the base branch."
+        },
+        "adrAi.maxDiffChars": {
+          "type": "number",
+          "default": 60000,
+          "minimum": 4000,
+          "markdownDescription": "Maximum number of diff characters sent to the model. Larger diffs are truncated to stay within token limits."
+        },
+        "adrAi.anthropicApiKey": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Anthropic API key. **For security, prefer the `ADR AI: Set API Key` command (stored in VS Code Secret Storage) or the `ANTHROPIC_API_KEY` environment variable instead of this setting.**"
+        },
+        "adrAi.openaiApiKey": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "OpenAI API key (also used for OpenAI-compatible endpoints that require a key). **Prefer the `ADR AI: Set API Key` command or the `OPENAI_API_KEY` environment variable.** Local servers that need no key can leave this empty."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit -p ./",
+    "build": "node esbuild.js",
+    "build:prod": "node esbuild.js --production",
+    "watch": "node esbuild.js --watch",
+    "vscode:prepublish": "npm run check-types && node esbuild.js --production"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.0",
+    "openai": "^6.44.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/vscode": "^1.90.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.5.0"
+  }
+}

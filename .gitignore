@@ -1,3 +1,10 @@
+# Node / VS Code extension
+node_modules/
+out/
+dist/
+*.vsix
+*.tsbuildinfo
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
