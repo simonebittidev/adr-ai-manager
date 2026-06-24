@@ -21,7 +21,7 @@ Initial release.
 
 - `ADR AI: Generate ADR from Commits…` command (also in the Source Control title bar).
 - Multi-select commit picker, pre-populated with commits ahead of the base branch.
-- AI assessment (Claude): verdict + confidence on whether the commits warrant an
+- AI assessment: verdict + confidence on whether the commits warrant an
   ADR, plus targeted questions generated from the diff.
 - Skippable question loop — skipped questions become `TODO`s instead of
   fabricated rationale.

@@ -1,11 +1,15 @@
 # ADR AI Manager
 
 A VS Code extension that turns selected commits into an honest Architecture
-Decision Record. You pick the commits, Claude reads the diff and decides whether
-the change actually warrants an ADR, asks you a couple of targeted questions
-about the *why* it can't see in the code, and then writes a structured
+Decision Record. You pick the commits, an AI model reads the diff and decides
+whether the change actually warrants an ADR, asks you a couple of targeted
+questions about the *why* it can't see in the code, and then writes a structured
 [MADR](https://adr.github.io/madr/) record — leaving anything it doesn't know as
 an explicit `TODO` instead of inventing it.
+
+Bring your own model: Claude (Anthropic), OpenAI, or any OpenAI-compatible
+endpoint including local runtimes like Ollama, LM Studio, and vLLM — see
+[Providers](#providers).
 
 ## Why this exists
 
@@ -14,7 +18,7 @@ the decision drivers, the alternatives that were rejected, the trade-offs that
 were accepted. None of that is in the code — it's in your head. So this tool does
 not try to guess it:
 
-- **It classifies first.** Not every branch deserves an ADR. Claude gives a
+- **It classifies first.** Not every branch deserves an ADR. The model gives a
   verdict (and a confidence) before anything is written, and stays conservative
   — a generator that fires on every bug fix gets ignored.
 - **It asks instead of inventing.** The questions are generated from your actual
@@ -28,9 +32,9 @@ not try to guess it:
 
 ```
 Pick commits (multi-select)
-  → Claude: verdict + targeted questions   (AI call #1)
+  → Model: verdict + targeted questions   (AI call #1)
   → You answer or skip each question
-  → Claude: generate the ADR from diff + answers   (AI call #2)
+  → Model: generate the ADR from diff + answers   (AI call #2)
   → Initialize docs/adr/ on first run, write NNNN-slug.md, open it
 ```
 

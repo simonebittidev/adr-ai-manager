@@ -1,7 +1,7 @@
 {
   "name": "adr-ai-manager",
   "displayName": "ADR AI Manager",
-  "description": "Select commits, let Claude decide whether they warrant an Architecture Decision Record, answer a few targeted questions, and generate a structured ADR — without fabricated rationale.",
+  "description": "Select commits, let an AI model (Claude, OpenAI, or a local OpenAI-compatible model) decide whether they warrant an Architecture Decision Record, answer a few targeted questions, and generate a structured ADR — without fabricated rationale.",
   "version": "0.2.0",
   "publisher": "simonebittidev",
   "license": "MIT",
