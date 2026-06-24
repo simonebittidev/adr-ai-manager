@@ -111,7 +111,7 @@ This section preserves the unedited reasoning so the trail is not lost.
 
 {Bullet list of the commits: short hash + subject.}
 
-Output ONLY the markdown of the ADR file. No code fences around the whole thing, no extra commentary.`;
+Output ONLY the markdown of the ADR file. No code fences around the whole thing, no extra commentary. Use clear English for the content of the ADR. `;
 
 export function buildGenUser(
   adrNumber: string,
