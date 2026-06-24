@@ -84,7 +84,9 @@ async function runGenerateFromCommits(context: vscode.ExtensionContext): Promise
       provider: config.provider,
       model,
       apiKey,
-      baseUrl: config.baseUrl || undefined
+      baseUrl: config.baseUrl || undefined,
+      azureEndpoint: config.azureEndpoint || undefined,
+      azureApiVersion: config.azureApiVersion || undefined
     });
 
     // --- AI call #1: verdict + questions ---
@@ -232,7 +234,12 @@ async function getApiKey(
     return fromEnv;
   }
 
-  const fromSetting = provider === "anthropic" ? config.anthropicApiKey : config.openaiApiKey;
+  const fromSetting =
+    provider === "anthropic"
+      ? config.anthropicApiKey
+      : provider === "openai"
+        ? config.openaiApiKey
+        : "";
   if (fromSetting) {
     return fromSetting;
   }
@@ -282,7 +289,8 @@ async function pickProvider(): Promise<Provider | undefined> {
   const picked = await vscode.window.showQuickPick(
     [
       { label: "Anthropic", value: "anthropic" as const },
-      { label: "OpenAI / OpenAI-compatible (incl. local)", value: "openai" as const }
+      { label: "OpenAI / OpenAI-compatible (incl. local)", value: "openai" as const },
+      { label: "Azure OpenAI", value: "azure" as const }
     ],
     { title: "Which provider's API key?", placeHolder: "Select a provider" }
   );
@@ -305,11 +313,23 @@ function secretKey(provider: Provider): string {
 }
 
 function envVar(provider: Provider): string {
-  return provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY";
+  if (provider === "anthropic") {
+    return "ANTHROPIC_API_KEY";
+  }
+  if (provider === "azure") {
+    return "AZURE_OPENAI_API_KEY";
+  }
+  return "OPENAI_API_KEY";
 }
 
 function providerLabel(provider: Provider): string {
-  return provider === "anthropic" ? "Anthropic" : "OpenAI";
+  if (provider === "anthropic") {
+    return "Anthropic";
+  }
+  if (provider === "azure") {
+    return "Azure OpenAI";
+  }
+  return "OpenAI";
 }
 
 function isAbort(err: unknown): boolean {

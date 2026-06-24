@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
-import OpenAI from "openai";
+import OpenAI, { AzureOpenAI } from "openai";
 
-export type Provider = "anthropic" | "openai";
+export type Provider = "anthropic" | "openai" | "azure";
 
 export interface CompletionRequest {
   system: string;
@@ -24,20 +24,38 @@ export interface LlmOptions {
   apiKey: string;
   /** OpenAI-compatible base URL (e.g. http://localhost:11434/v1 for Ollama). */
   baseUrl?: string;
+  /** Azure OpenAI resource endpoint, e.g. https://my-res.openai.azure.com */
+  azureEndpoint?: string;
+  /** Azure OpenAI api-version, e.g. 2024-10-21. */
+  azureApiVersion?: string;
 }
 
 export function createLlmClient(opts: LlmOptions): LlmClient {
   if (opts.provider === "anthropic") {
     return new AnthropicLlmClient(opts.apiKey, opts.model);
   }
+  if (opts.provider === "azure") {
+    return new AzureOpenAiLlmClient(
+      opts.apiKey,
+      opts.model,
+      opts.azureEndpoint,
+      opts.azureApiVersion
+    );
+  }
   return new OpenAiLlmClient(opts.apiKey, opts.model, opts.baseUrl);
 }
 
 /**
  * Resolve the model id, falling back to a provider default when unset.
- * Throws for local OpenAI-compatible endpoints where there is no safe default.
+ * Throws when there is no safe default (local endpoints, Azure deployments).
  */
 export function resolveModel(provider: Provider, model: string, baseUrl: string): string {
+  if (provider === "azure") {
+    if (model) {
+      return model;
+    }
+    throw new Error("set 'adrAi.model' to your Azure OpenAI deployment name.");
+  }
   if (model) {
     return model;
   }
@@ -87,30 +105,60 @@ class OpenAiLlmClient implements LlmClient {
     this.label = baseUrl ? `OpenAI-compatible (${baseUrl})` : "OpenAI";
   }
 
-  async complete(req: CompletionRequest): Promise<string> {
-    const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-      { role: "system", content: req.system },
-      { role: "user", content: req.user }
-    ];
+  complete(req: CompletionRequest): Promise<string> {
+    return chatComplete(this.client, this.model, req);
+  }
+}
 
-    try {
-      const response = await this.client.chat.completions.create(
-        { model: this.model, max_tokens: req.maxTokens, messages },
-        { signal: req.signal }
-      );
-      return response.choices[0]?.message?.content ?? "";
-    } catch (err) {
-      // Newer OpenAI reasoning models reject `max_tokens` and require
-      // `max_completion_tokens`. Retry once with the alternate parameter.
-      if (!requiresCompletionTokensParam(err)) {
-        throw err;
-      }
-      const response = await this.client.chat.completions.create(
-        { model: this.model, max_completion_tokens: req.maxTokens, messages },
-        { signal: req.signal }
-      );
-      return response.choices[0]?.message?.content ?? "";
+class AzureOpenAiLlmClient implements LlmClient {
+  readonly label = "Azure OpenAI";
+  private readonly client: AzureOpenAI;
+
+  constructor(apiKey: string, private readonly deployment: string, endpoint?: string, apiVersion?: string) {
+    if (!endpoint) {
+      throw new Error("set 'adrAi.azureEndpoint' (e.g. https://<resource>.openai.azure.com).");
     }
+    if (!apiVersion) {
+      throw new Error("set 'adrAi.azureApiVersion' (e.g. 2024-10-21).");
+    }
+    this.client = new AzureOpenAI({ apiKey, endpoint, apiVersion, deployment });
+  }
+
+  complete(req: CompletionRequest): Promise<string> {
+    // With `deployment` set on the client, routing uses it; `model` is sent
+    // for completeness (the deployment name) but does not affect routing.
+    return chatComplete(this.client, this.deployment, req);
+  }
+}
+
+/** Shared OpenAI-style chat completion, with a retry for reasoning models. */
+async function chatComplete(
+  client: OpenAI,
+  model: string,
+  req: CompletionRequest
+): Promise<string> {
+  const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+    { role: "system", content: req.system },
+    { role: "user", content: req.user }
+  ];
+
+  try {
+    const response = await client.chat.completions.create(
+      { model, max_tokens: req.maxTokens, messages },
+      { signal: req.signal }
+    );
+    return response.choices[0]?.message?.content ?? "";
+  } catch (err) {
+    // Newer OpenAI reasoning models reject `max_tokens` and require
+    // `max_completion_tokens`. Retry once with the alternate parameter.
+    if (!requiresCompletionTokensParam(err)) {
+      throw err;
+    }
+    const response = await client.chat.completions.create(
+      { model, max_completion_tokens: req.maxTokens, messages },
+      { signal: req.signal }
+    );
+    return response.choices[0]?.message?.content ?? "";
   }
 }
 

@@ -2,7 +2,7 @@
   "name": "adr-ai-manager",
   "displayName": "ADR AI Manager",
   "description": "Select commits, let an AI model (Claude, OpenAI, or a local OpenAI-compatible model) decide whether they warrant an Architecture Decision Record, answer a few targeted questions, and generate a structured ADR — without fabricated rationale.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "simonebittidev",
   "license": "MIT",
   "engines": {
@@ -57,10 +57,11 @@
       "properties": {
         "adrAi.provider": {
           "type": "string",
-          "enum": ["anthropic", "openai"],
+          "enum": ["anthropic", "openai", "azure"],
           "enumDescriptions": [
             "Anthropic Messages API (Claude).",
-            "OpenAI Chat Completions API, or any OpenAI-compatible endpoint (set adrAi.baseUrl for local runtimes like Ollama, LM Studio, vLLM, LiteLLM)."
+            "OpenAI Chat Completions API, or any OpenAI-compatible endpoint (set adrAi.baseUrl for local runtimes like Ollama, LM Studio, vLLM, LiteLLM).",
+            "Azure OpenAI Service (set adrAi.azureEndpoint, adrAi.azureApiVersion, and adrAi.model to the deployment name)."
           ],
           "default": "anthropic",
           "markdownDescription": "Which model provider to use."
@@ -70,6 +71,16 @@
           "default": "",
           "markdownDescription": "OpenAI-compatible base URL for the `openai` provider. Leave empty for OpenAI itself. Examples: `http://localhost:11434/v1` (Ollama), `http://localhost:1234/v1` (LM Studio), `http://localhost:8000/v1` (vLLM)."
         },
+        "adrAi.azureEndpoint": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Azure OpenAI resource endpoint for the `azure` provider, e.g. `https://<resource>.openai.azure.com`."
+        },
+        "adrAi.azureApiVersion": {
+          "type": "string",
+          "default": "2024-10-21",
+          "markdownDescription": "Azure OpenAI `api-version` for the `azure` provider. Newer models may require a newer version — check what your resource/deployment supports."
+        },
         "adrAi.directory": {
           "type": "string",
           "default": "docs/adr",
@@ -78,7 +89,7 @@
         "adrAi.model": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Model id used for assessment and ADR generation. Leave empty to use the provider default (Anthropic: `claude-opus-4-8`, OpenAI: `gpt-4o`). **Required when using a local model** (set it to the served model name, e.g. `llama3.1`)."
+          "markdownDescription": "Model id used for assessment and ADR generation. Leave empty to use the provider default (Anthropic: `claude-opus-4-8`, OpenAI: `gpt-4o`). **Required for local models** (the served model name, e.g. `llama3.1`) and **for Azure** (your **deployment name**, not the base model id)."
         },
         "adrAi.maxQuestions": {
           "type": "number",

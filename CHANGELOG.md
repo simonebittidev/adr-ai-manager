@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0
+
+- Add Azure OpenAI provider (`adrAi.provider: "azure"`): set `adrAi.azureEndpoint`,
+  `adrAi.azureApiVersion`, and `adrAi.model` to the deployment name. Key via the
+  `ADR AI: Set API Key` command (pick Azure) or `AZURE_OPENAI_API_KEY`.
+
 ## 0.2.0
 
 - Multiple model providers via `adrAi.provider`:

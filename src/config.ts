@@ -6,6 +6,8 @@ export interface AdrAiConfig {
   /** Raw model id from settings; may be empty (resolved per provider). */
   model: string;
   baseUrl: string;
+  azureEndpoint: string;
+  azureApiVersion: string;
   directory: string;
   maxQuestions: number;
   baseBranch: string;
@@ -17,11 +19,15 @@ export interface AdrAiConfig {
 
 export function getConfig(): AdrAiConfig {
   const cfg = vscode.workspace.getConfiguration("adrAi");
-  const provider = cfg.get<string>("provider", "anthropic") === "openai" ? "openai" : "anthropic";
+  const rawProvider = cfg.get<string>("provider", "anthropic");
+  const provider: Provider =
+    rawProvider === "openai" ? "openai" : rawProvider === "azure" ? "azure" : "anthropic";
   return {
     provider,
     model: cfg.get<string>("model", "").trim(),
     baseUrl: cfg.get<string>("baseUrl", "").trim(),
+    azureEndpoint: cfg.get<string>("azureEndpoint", "").trim(),
+    azureApiVersion: cfg.get<string>("azureApiVersion", "2024-10-21").trim(),
     directory: cfg.get<string>("directory", "docs/adr").trim() || "docs/adr",
     maxQuestions: clamp(cfg.get<number>("maxQuestions", 3), 0, 5),
     baseBranch: cfg.get<string>("baseBranch", "").trim(),

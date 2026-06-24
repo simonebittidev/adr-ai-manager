@@ -58,6 +58,18 @@ The extension is model-agnostic. Set `adrAi.provider`:
   Set `adrAi.model` explicitly for local runtimes (there is no safe default).
   Local servers that need no key can leave the key unset.
 
+- **`azure`** — Azure OpenAI Service. Set:
+
+  | Setting | Value |
+  | --- | --- |
+  | `adrAi.azureEndpoint` | `https://<resource>.openai.azure.com` |
+  | `adrAi.azureApiVersion` | e.g. `2024-10-21` (newer models may need a newer version) |
+  | `adrAi.model` | your **deployment name** (not the base model id) |
+
+  The key comes from `ADR AI: Set API Key` (pick Azure) or the
+  `AZURE_OPENAI_API_KEY` environment variable. Example: a `gpt-5.4-mini`
+  deployment named `gpt5-mini` → set `adrAi.model` to `gpt5-mini`.
+
 > Quality matters here: the assessment and the question generation lean on the
 > model's judgement. Larger/stronger models give better verdicts and sharper,
 > more specific questions; very small local models may produce weaker JSON
@@ -91,9 +103,11 @@ The extension is model-agnostic. Set `adrAi.provider`:
 
 | Setting | Default | Description |
 | --- | --- | --- |
-| `adrAi.provider` | `anthropic` | `anthropic` or `openai` (OpenAI-compatible). |
+| `adrAi.provider` | `anthropic` | `anthropic`, `openai` (OpenAI-compatible), or `azure`. |
 | `adrAi.baseUrl` | `""` | OpenAI-compatible base URL (for local runtimes). |
-| `adrAi.model` | `""` | Model id; empty = provider default. Required for local. |
+| `adrAi.azureEndpoint` | `""` | Azure OpenAI resource endpoint. |
+| `adrAi.azureApiVersion` | `2024-10-21` | Azure OpenAI `api-version`. |
+| `adrAi.model` | `""` | Model id; empty = provider default. Required for local & Azure (deployment name). |
 | `adrAi.directory` | `docs/adr` | Where ADRs live (relative to the repo root). |
 | `adrAi.maxQuestions` | `3` | Cap on targeted questions (keep it low). |
 | `adrAi.baseBranch` | `""` | Branch to diff against; empty = auto-detect. |
